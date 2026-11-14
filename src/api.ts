@@ -19,6 +19,15 @@ export async function api<T>(url: string, options: RequestInit = {}): Promise<T>
     const payload = await response.json().catch(() => ({}));
     if (response.status === 401 && url.startsWith('/api/teacher/') && !url.endsWith('/session'))
       window.dispatchEvent(new Event('teacher-session-expired'));
+    if (
+      response.status === 401 &&
+      !url.endsWith('/session') &&
+      (url.startsWith('/api/student/') ||
+        url.startsWith('/api/receipts/') ||
+        /\/api\/questions\/[^/]+\/submissions/.test(url))
+    ) {
+      window.dispatchEvent(new Event('student-session-expired'));
+    }
     throw new ApiError(response.status, payload.message || '请求失败，请稍后重试');
   }
   return response.json() as Promise<T>;

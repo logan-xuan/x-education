@@ -13,7 +13,12 @@ import {
   Send,
   Users,
 } from 'lucide-react';
-import { reviewInputSchema, type QuestionSummary, type RecordsResponse, type Submission } from '../../shared/model';
+import {
+  reviewInputSchema,
+  type QuestionSummary,
+  type RecordsResponse,
+  type Submission,
+} from '../../shared/model';
 import { api, message } from '../api';
 import { useDebounce, useResource } from '../hooks';
 import {
@@ -113,8 +118,28 @@ export default function Records() {
               </strong>
               <p>{data ? `累计 ${data.stats.submissionCount} 次提交` : '按组名与编号去重'}</p>
             </div>
-            <div className="summary-card"><div><small>待审核</small><Clock3 size={17} /></div><strong>{data ? data.stats.pendingCount : '—'}<span>人</span></strong><p>按每人最新一次提交统计</p></div>
-            <div className="summary-card accent"><div><small>已通过</small><CircleCheck size={17} /></div><strong>{data ? data.stats.approvedCount : '—'}<span>人</span></strong><p>{data ? `另有 ${data.stats.returnedCount} 人退回重答` : '由老师审核决定'}</p></div>
+            <div className="summary-card">
+              <div>
+                <small>待审核</small>
+                <Clock3 size={17} />
+              </div>
+              <strong>
+                {data ? data.stats.pendingCount : '—'}
+                <span>人</span>
+              </strong>
+              <p>按每人最新一次提交统计</p>
+            </div>
+            <div className="summary-card accent">
+              <div>
+                <small>已通过</small>
+                <CircleCheck size={17} />
+              </div>
+              <strong>
+                {data ? data.stats.approvedCount : '—'}
+                <span>人</span>
+              </strong>
+              <p>{data ? `另有 ${data.stats.returnedCount} 人退回重答` : '由老师审核决定'}</p>
+            </div>
           </div>
           <section className="table-box">
             <div className="table-heading">
@@ -149,7 +174,16 @@ export default function Records() {
                 <option value="correct">参考达标</option>
                 <option value="incorrect">参考未达标</option>
               </select>
-              <select aria-label="筛选审核状态" value={reviewStatus} onChange={e => setReviewStatus(e.target.value)}><option value="all">全部审核状态</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="returned">退回重答</option></select>
+              <select
+                aria-label="筛选审核状态"
+                value={reviewStatus}
+                onChange={(e) => setReviewStatus(e.target.value)}
+              >
+                <option value="all">全部审核状态</option>
+                <option value="pending">待审核</option>
+                <option value="approved">已通过</option>
+                <option value="returned">退回重答</option>
+              </select>
               <select
                 aria-label="筛选提交范围"
                 value={String(latest)}
@@ -173,7 +207,8 @@ export default function Records() {
                         <th>分配方案</th>
                         <th>中奖率</th>
                         <th>总奖金</th>
-                        <th>自动核算参考</th><th>审核状态</th>
+                        <th>自动核算参考</th>
+                        <th>审核状态</th>
                         <th>提交时间</th>
                         <th>操作</th>
                       </tr>
@@ -182,7 +217,7 @@ export default function Records() {
                       {data.items.map((s) => (
                         <tr key={s.id}>
                           <td>
-                            <strong>{s.identity.groupName}</strong>
+                            <strong>{s.identity.groupName || '未分组'}</strong>
                             <small>编号 {s.identity.studentNumber}</small>
                           </td>
                           <td className="number">
@@ -197,7 +232,9 @@ export default function Records() {
                               {s.grading.isCorrect ? '参考达标' : '参考未达标'}
                             </Pill>
                           </td>
-                          <td><ReviewBadge status={s.reviewStatus} /></td>
+                          <td>
+                            <ReviewBadge status={s.reviewStatus} />
+                          </td>
                           <td className="record-date">{dateTime(s.createdAt)}</td>
                           <td>
                             <button className="text-button" onClick={() => setSelected(s.id)}>
@@ -234,23 +271,36 @@ export default function Records() {
               </>
             ) : (
               <div className="empty-state">
-                {debounced || result !== 'all' || reviewStatus !== 'all' ? <SearchX size={32} /> : <Inbox size={32} />}
+                {debounced || result !== 'all' || reviewStatus !== 'all' ? (
+                  <SearchX size={32} />
+                ) : (
+                  <Inbox size={32} />
+                )}
                 <h2>
-                  {debounced || result !== 'all' || reviewStatus !== 'all' ? '没有符合条件的记录' : '还没有学生提交答案'}
+                  {debounced || result !== 'all' || reviewStatus !== 'all'
+                    ? '没有符合条件的记录'
+                    : '还没有学生提交答案'}
                 </h2>
                 <p>
                   {debounced || result !== 'all' || reviewStatus !== 'all'
                     ? '换个关键词，或调整筛选条件再试试。'
                     : '学生提交方案后，答题情况会展示在这里。'}
                 </p>
-                {(debounced || result !== 'all' || reviewStatus !== 'all') && <Button onClick={clear}>清除筛选</Button>}
+                {(debounced || result !== 'all' || reviewStatus !== 'all') && (
+                  <Button onClick={clear}>清除筛选</Button>
+                )}
               </div>
             )}
           </section>
         </>
       )}
       {selected !== null && (
-        <SubmissionDetail id={selected} onClose={() => setSelected(null)} onSelect={setSelected} onReviewed={records.reload} />
+        <SubmissionDetail
+          id={selected}
+          onClose={() => setSelected(null)}
+          onSelect={setSelected}
+          onReviewed={records.reload}
+        />
       )}
     </>
   );
@@ -267,9 +317,11 @@ function SubmissionDetail({
   onSelect: (id: number) => void;
   onReviewed: () => void;
 }) {
-  const resource = useResource<{ submission: Submission; history: Submission[]; canReview: boolean }>(
-    `/api/teacher/submissions/${id}`,
-  );
+  const resource = useResource<{
+    submission: Submission;
+    history: Submission[];
+    canReview: boolean;
+  }>(`/api/teacher/submissions/${id}`);
   const [tab, setTab] = useState('answer'),
     [feedback, setFeedback] = useState(''),
     [busy, setBusy] = useState(false),
@@ -286,14 +338,35 @@ function SubmissionDetail({
   }, [s?.id, s?.feedback]);
   async function review(status: 'approved' | 'returned') {
     if (!s || busy) return;
-    const parsed = reviewInputSchema.safeParse({ status, feedback, reviewVersion: s.reviewVersion });
-    if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
-    setBusy(true); setError(''); setNotice('');
+    const parsed = reviewInputSchema.safeParse({
+      status,
+      feedback,
+      reviewVersion: s.reviewVersion,
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0].message);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setNotice('');
     try {
-      await api(`/api/teacher/submissions/${id}/review`, { method: 'PATCH', body: JSON.stringify(parsed.data) });
-      setNotice(status === 'approved' ? '已审核通过，学生可以查看审核状态。' : '已退回重答，学生可根据修改意见重新提交。');
-      resource.reload(); onReviewed();
-    } catch (e) { setError(message(e)); } finally { setBusy(false); }
+      await api(`/api/teacher/submissions/${id}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify(parsed.data),
+      });
+      setNotice(
+        status === 'approved'
+          ? '已审核通过，学生可以查看审核状态。'
+          : '已退回重答，学生可根据修改意见重新提交。',
+      );
+      resource.reload();
+      onReviewed();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <Dialog drawer title="答案详情" onClose={onClose}>
@@ -309,17 +382,15 @@ function SubmissionDetail({
             </p>
             <div className="detail-identity">
               <div className="person">
-                <span className="avatar">{s.identity.groupName.slice(0, 1)}</span>
+                <span className="avatar">{(s.identity.groupName || '未').slice(0, 1)}</span>
                 <div>
-                  <h3>{s.identity.groupName}</h3>
+                  <h3>{s.identity.groupName || '未分组'}</h3>
                   <p>
                     编号 {s.identity.studentNumber} · 共提交 {resource.data!.history.length} 次
                   </p>
                 </div>
               </div>
-              <Pill kind={s.grading.isCorrect ? 'good' : 'bad'}>
-                {s.grading.isCorrect ? '答案正确' : '需修改'}
-              </Pill>
+              <ReviewBadge status={s.reviewStatus} />
             </div>
             <div className="detail-tabs" role="group" aria-label="答案内容">
               <button onClick={() => setTab('answer')} aria-pressed={tab === 'answer'}>
@@ -340,7 +411,8 @@ function SubmissionDetail({
                   </span>
                 </div>
                 <Metrics grading={s.grading} rules={s.question.rules} />
-                <h3>自动核算参考（仅老师可见）</h3><p className="tiny">以下内容仅供审核参考，最终结论由老师选择通过或退回。</p>
+                <h3>自动核算参考（仅老师可见）</h3>
+                <p className="tiny">以下内容仅供审核参考，最终结论由老师选择通过或退回。</p>
                 <Checks grading={s.grading} />
                 {!s.grading.calculationCorrect && (
                   <div className="submitted-calculation">
@@ -351,12 +423,56 @@ function SubmissionDetail({
                 <h3 className="spaced">学生的设计理由</h3>
                 <p className="reason-block">{s.answer.reason}</p>
                 <div className="feedback-section">
-                  {resource.data!.canReview ? <>
-                    <label className="field">审核意见<textarea value={feedback} onChange={e => { setFeedback(e.target.value); setNotice(''); }} maxLength={500} placeholder="填写鼓励或修改建议；退回重答时必须说明原因。" /></label>
-                    <div className="field-help"><span>审核后向学生展示，不会展示自动核算结果。</span><span>{feedback.length} / 500</span></div>
-                    {error && <Alert>{error}</Alert>}
-                    <div className="dialog-actions"><Button icon={Undo2} disabled={busy} onClick={() => review('returned')}>退回重答</Button><Button primary icon={CircleCheck} disabled={busy} onClick={() => review('approved')}>{busy ? '正在提交…' : '审核通过'}</Button></div>
-                  </> : <><h3>老师审核意见</h3><p className="reason-block">{s.feedback || (s.reviewStatus === 'pending' ? '这是历史提交，请审核最新一次答案。' : '本次审核已完成。')}</p>{s.reviewedAt && <p className="tiny">审核于 {dateTime(s.reviewedAt)}</p>}{s.reviewStatus === 'pending' && <Button onClick={() => onSelect(resource.data!.history[0].id)}>查看最新答案</Button>}</>}
+                  {resource.data!.canReview ? (
+                    <>
+                      <label className="field">
+                        审核意见
+                        <textarea
+                          value={feedback}
+                          onChange={(e) => {
+                            setFeedback(e.target.value);
+                            setNotice('');
+                          }}
+                          maxLength={500}
+                          placeholder="填写鼓励或修改建议；退回重答时必须说明原因。"
+                        />
+                      </label>
+                      <div className="field-help">
+                        <span>审核后向学生展示，不会展示自动核算结果。</span>
+                        <span>{feedback.length} / 500</span>
+                      </div>
+                      {error && <Alert>{error}</Alert>}
+                      <div className="dialog-actions">
+                        <Button icon={Undo2} disabled={busy} onClick={() => review('returned')}>
+                          退回重答
+                        </Button>
+                        <Button
+                          primary
+                          icon={CircleCheck}
+                          disabled={busy}
+                          onClick={() => review('approved')}
+                        >
+                          {busy ? '正在提交…' : '审核通过'}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h3>老师审核意见</h3>
+                      <p className="reason-block">
+                        {s.feedback ||
+                          (s.reviewStatus === 'pending'
+                            ? '这是历史提交，请审核最新一次答案。'
+                            : '本次审核已完成。')}
+                      </p>
+                      {s.reviewedAt && <p className="tiny">审核于 {dateTime(s.reviewedAt)}</p>}
+                      {s.reviewStatus === 'pending' && (
+                        <Button onClick={() => onSelect(resource.data!.history[0].id)}>
+                          查看最新答案
+                        </Button>
+                      )}
+                    </>
+                  )}
                   {notice && <Alert success>{notice}</Alert>}
                 </div>
               </>

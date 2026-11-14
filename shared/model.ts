@@ -60,17 +60,28 @@ export const answerSchema = z.object({
   reason: z.string().trim().min(1, '请填写设计理由').max(500),
 });
 export const identitySchema = z.object({
-  groupName: z.string().trim().min(1, '请填写组名').max(30),
+  groupName: z.string().trim().max(30).default(''),
   studentNumber: z.string().trim().min(1, '请填写编号').max(30),
 });
 export const submissionInputSchema = z.object({
   questionVersion: z.number().int().positive(),
-  previousReceipt: z.string().regex(/^[A-Za-z0-9_-]{32}$/).optional(),
+  previousReceipt: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{32}$/)
+    .optional(),
   identity: identitySchema,
   answer: answerSchema,
 });
 export type Answer = z.infer<typeof answerSchema>;
 export type Identity = z.infer<typeof identitySchema>;
+export interface StudentProfile extends Identity {
+  id: string;
+  createdAt: string;
+  lastLoginAt: string;
+}
+export const studentSubmissionSchema = submissionInputSchema
+  .omit({ identity: true })
+  .extend({ studentId: z.string().uuid().optional() });
 export type SubmissionInput = z.infer<typeof submissionInputSchema>;
 export interface Check {
   code: 'quantity' | 'rate' | 'budget' | 'calculation';
@@ -101,19 +112,29 @@ export interface Submission {
   createdAt: string;
 }
 export type ReviewStatus = 'pending' | 'approved' | 'returned';
-export const reviewInputSchema = z.object({
-  status: z.enum(['approved', 'returned']),
-  feedback: z.string().trim().max(500).default(''),
-  reviewVersion: z.number().int().min(0),
-}).superRefine((input, ctx) => {
-  if (input.status === 'returned' && !input.feedback) {
-    ctx.addIssue({ code: 'custom', path: ['feedback'], message: '退回重答时请填写修改意见' });
-  }
-});
+export const reviewInputSchema = z
+  .object({
+    status: z.enum(['approved', 'returned']),
+    feedback: z.string().trim().max(500).default(''),
+    reviewVersion: z.number().int().min(0),
+  })
+  .superRefine((input, ctx) => {
+    if (input.status === 'returned' && !input.feedback) {
+      ctx.addIssue({ code: 'custom', path: ['feedback'], message: '退回重答时请填写修改意见' });
+    }
+  });
 export type ReviewInput = z.infer<typeof reviewInputSchema>;
 // Whitelist the student contract. Automatic grading must never leave teacher-only APIs.
-export type PublicSubmission = Pick<Submission,
-  'receipt' | 'questionId' | 'question' | 'identity' | 'answer' | 'reviewStatus' | 'reviewedAt' | 'createdAt'
+export type PublicSubmission = Pick<
+  Submission,
+  | 'receipt'
+  | 'questionId'
+  | 'question'
+  | 'identity'
+  | 'answer'
+  | 'reviewStatus'
+  | 'reviewedAt'
+  | 'createdAt'
 > & {
   feedback: string;
   isLatest: boolean;

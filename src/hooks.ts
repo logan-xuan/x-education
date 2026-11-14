@@ -24,7 +24,11 @@ export function useResource<T>(url: string | null, keepPreviousData = false) {
       })
       .catch((error) => {
         if (!controller.signal.aborted)
-          setState((previous) => ({ data: preserve ? previous.data : null, loading: false, error: message(error) }));
+          setState((previous) => ({
+            data: preserve ? previous.data : null,
+            loading: false,
+            error: message(error),
+          }));
       });
     return () => controller.abort();
   }, [url, version, keepPreviousData]);

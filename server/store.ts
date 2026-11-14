@@ -14,6 +14,7 @@ import {
   type Stats,
   type Submission,
   type SubmissionInput,
+  type StudentProfile,
 } from '../shared/model.js';
 import { grade } from './grading.js';
 import { AppError } from './errors.js';
@@ -65,13 +66,81 @@ export class Store {
           ALTER TABLE submissions ADD COLUMN reviewed_at TEXT;
           CREATE INDEX idx_submissions_review ON submissions(question_id, review_status, id DESC);
         `);
-        this.db.prepare('INSERT INTO migrations VALUES (?, ?)').run('teacher-review-v1', new Date().toISOString());
+        this.db
+          .prepare('INSERT INTO migrations VALUES (?, ?)')
+          .run('teacher-review-v1', new Date().toISOString());
         this.db.exec('COMMIT');
-      } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+    if (!this.db.prepare('SELECT id FROM migrations WHERE id=?').get('student-login-v1')) {
+      this.db.exec('BEGIN IMMEDIATE');
+      try {
+        this.db.exec(`CREATE TABLE students (
+          id TEXT PRIMARY KEY, group_name TEXT NOT NULL DEFAULT '', student_number TEXT NOT NULL,
+          created_at TEXT NOT NULL, last_login_at TEXT NOT NULL,
+          UNIQUE(group_name, student_number)
+        )`);
+        const insert = this.db.prepare('INSERT INTO students VALUES (?,?,?,?,?)');
+        for (const row of this.db
+          .prepare(
+            'SELECT group_name, student_number, MIN(created_at) AS first_at, MAX(created_at) AS last_at FROM submissions GROUP BY group_name,student_number',
+          )
+          .all()) {
+          insert.run(
+            randomUUID(),
+            String(row.group_name),
+            String(row.student_number),
+            String(row.first_at),
+            String(row.last_at),
+          );
+        }
+        this.db
+          .prepare('INSERT INTO migrations VALUES (?,?)')
+          .run('student-login-v1', new Date().toISOString());
+        this.db.exec('COMMIT');
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
+      }
     }
   }
   close() {
     this.db.close();
+  }
+  student(id: string): StudentProfile | null {
+    const row = this.db.prepare('SELECT * FROM students WHERE id=?').get(id);
+    return row
+      ? {
+          id: String(row.id),
+          groupName: String(row.group_name),
+          studentNumber: String(row.student_number),
+          createdAt: String(row.created_at),
+          lastLoginAt: String(row.last_login_at),
+        }
+      : null;
+  }
+  loginStudent(identity: Identity): StudentProfile {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        'INSERT INTO students VALUES (?,?,?,?,?) ON CONFLICT(group_name,student_number) DO UPDATE SET last_login_at=excluded.last_login_at',
+      )
+      .run(randomUUID(), identity.groupName, identity.studentNumber, now, now);
+    const row = this.db
+      .prepare('SELECT id FROM students WHERE group_name=? AND student_number=?')
+      .get(identity.groupName, identity.studentNumber)!;
+    return this.student(String(row.id))!;
+  }
+  studentSubmissions(identity: Identity, questionId?: string): Submission[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM (SELECT *,ROW_NUMBER() OVER (PARTITION BY question_id ORDER BY id DESC) AS rank FROM submissions WHERE group_name=? AND student_number=?${questionId ? ' AND question_id=?' : ''}) WHERE rank=1 ORDER BY id DESC`,
+      )
+      .all(identity.groupName, identity.studentNumber, ...(questionId ? [questionId] : []));
+    return rows.map((row) => this.submissionRow(row));
   }
   private questionRow(row: Row): Question {
     return {
@@ -170,9 +239,12 @@ export class Store {
         throw new AppError(409, '老师已更新题目，请重新载入题目后检查答案再提交');
       const previous = this.latestSubmission(questionId, input.identity);
       if (previous) {
-        if (previous.reviewStatus === 'pending') throw new AppError(409, '该组名和编号已有待审核提交，请等待老师审核');
-        if (previous.reviewStatus === 'approved') throw new AppError(409, '该组名和编号的答案已通过审核，无需再次提交');
-        if (input.previousReceipt !== previous.receipt) throw new AppError(409, '请从老师退回的提交状态页进入重答');
+        if (previous.reviewStatus === 'pending')
+          throw new AppError(409, '该组名和编号已有待审核提交，请等待老师审核');
+        if (previous.reviewStatus === 'approved')
+          throw new AppError(409, '该组名和编号的答案已通过审核，无需再次提交');
+        if (input.previousReceipt !== previous.receipt)
+          throw new AppError(409, '请从老师退回的提交状态页进入重答');
       } else if (input.previousReceipt) {
         throw new AppError(409, '重答入口与当前组名或编号不匹配，请通过原提交状态页重答');
       }
@@ -221,7 +293,11 @@ export class Store {
       .map((row) => this.submissionRow(row));
   }
   latestSubmission(questionId: string, identity: Identity): Submission | null {
-    const row = this.db.prepare('SELECT * FROM submissions WHERE question_id=? AND group_name=? AND student_number=? ORDER BY id DESC LIMIT 1').get(questionId, identity.groupName, identity.studentNumber);
+    const row = this.db
+      .prepare(
+        'SELECT * FROM submissions WHERE question_id=? AND group_name=? AND student_number=? ORDER BY id DESC LIMIT 1',
+      )
+      .get(questionId, identity.groupName, identity.studentNumber);
     return row ? this.submissionRow(row) : null;
   }
   review(id: number, input: ReviewInput): Submission {
@@ -231,15 +307,25 @@ export class Store {
       if (this.latestSubmission(submission.questionId, submission.identity)!.id !== id) {
         throw new AppError(409, '这是历史提交，请审核该学生的最新一次答案');
       }
-      if (submission.reviewStatus !== 'pending' || submission.reviewVersion !== input.reviewVersion) {
+      if (
+        submission.reviewStatus !== 'pending' ||
+        submission.reviewVersion !== input.reviewVersion
+      ) {
         throw new AppError(409, '这份答案已被审核，请刷新后查看最新状态');
       }
       const now = new Date().toISOString();
-      this.db.prepare('UPDATE submissions SET review_status=?, review_version=review_version+1, reviewed_at=?, feedback=?, feedback_updated_at=? WHERE id=?').run(input.status, now, input.feedback, now, id);
+      this.db
+        .prepare(
+          'UPDATE submissions SET review_status=?, review_version=review_version+1, reviewed_at=?, feedback=?, feedback_updated_at=? WHERE id=?',
+        )
+        .run(input.status, now, input.feedback, now, id);
       const result = this.submission(id);
       this.db.exec('COMMIT');
       return result;
-    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
   stats(questionId: string): Stats {
     const row = this.db
@@ -266,7 +352,7 @@ export class Store {
     const params: SQLInputValue[] = [filters.questionId];
     if (filters.search) {
       clauses.push(
-        '(instr(lower(group_name),lower(?)) > 0 OR instr(lower(student_number),lower(?)) > 0)',
+        "(instr(lower(COALESCE(NULLIF(group_name,''),'未分组')),lower(?)) > 0 OR instr(lower(student_number),lower(?)) > 0)",
       );
       params.push(filters.search, filters.search);
     }

@@ -7,6 +7,9 @@ import TeacherLayout from './pages/TeacherLayout';
 import Questions from './pages/Questions';
 import Records from './pages/Records';
 import Editor from './pages/Editor';
+import StudentLayout from './pages/StudentLayout';
+import StudentLogin from './pages/StudentLogin';
+import StudentWork from './pages/StudentWork';
 import { Footer, Header } from './components/ui';
 import './styles.css';
 
@@ -14,9 +17,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Student />} />
-        <Route path="/questions/:id" element={<Student />} />
-        <Route path="/results/:receipt" element={<Result />} />
+        <Route path="/login" element={<StudentLogin />} />
+        <Route element={<StudentLayout />}>
+          <Route path="/" element={<Student />} />
+          <Route path="/questions/:id" element={<Student />} />
+          <Route path="/results/:receipt" element={<Result />} />
+          <Route path="/my-submissions" element={<StudentWork />} />
+        </Route>
         <Route path="/teacher" element={<TeacherLayout />}>
           <Route index element={<Questions />} />
           <Route path="records" element={<Records />} />

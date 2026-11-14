@@ -52,9 +52,19 @@ test('the real development proxy accepts same-origin student and teacher writes 
       reason: '验证真实开发代理路径。',
     },
   };
+  async function login(studentNumber: string) {
+    const response = await fetch(`${origin}/api/student/session`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupName: '开发代理测试组', studentNumber }),
+    });
+    assert.equal(response.status, 200);
+    return response.headers.get('set-cookie')!.split(';')[0];
+  }
+  const studentCookie = await login('01');
   const submitted = await fetch(`${origin}/api/questions/red-packet/submissions`, {
     method: 'POST',
-    headers: { Origin: origin, 'Content-Type': 'application/json' },
+    headers: { Origin: origin, Cookie: studentCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify(answer),
   });
   assert.equal(submitted.status, 201, await submitted.clone().text());
@@ -62,9 +72,10 @@ test('the real development proxy accepts same-origin student and teacher writes 
   assert.equal(first.reviewStatus, 'pending');
   assert.equal('grading' in first, false);
 
+  const otherCookie = await login('02');
   const incorrect = await fetch(`${origin}/api/questions/red-packet/submissions`, {
     method: 'POST',
-    headers: { Origin: origin, 'Content-Type': 'application/json' },
+    headers: { Origin: origin, Cookie: otherCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...answer,
       identity: { ...answer.identity, studentNumber: '02' },

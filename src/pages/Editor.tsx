@@ -109,7 +109,7 @@ function EditorForm({ initial }: { initial?: Question }) {
             {initial ? '编辑题目' : '新建题目'}
           </div>
           <h1>{initial ? '编辑课堂任务' : '设计一道新任务'}</h1>
-          <p>设置任务条件，系统将按这些规则自动核验。</p>
+          <p>设置任务条件，系统为老师提供核算参考，最终由老师审核。</p>
         </div>
         <ButtonLink to="/teacher" icon={ArrowLeft}>
           返回列表

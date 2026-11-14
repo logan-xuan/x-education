@@ -4,14 +4,16 @@ import { resolve } from 'node:path';
 import { z, ZodError } from 'zod';
 import {
   questionInputSchema,
-  submissionInputSchema,
+  studentSubmissionSchema,
   reviewInputSchema,
   type PublicSubmission,
   type Submission,
+  type StudentProfile,
 } from '../shared/model.js';
 import { Store } from './store.js';
 import { AppError } from './errors.js';
 import { teacherAuth } from './auth.js';
+import { studentAuth } from './student-auth.js';
 
 export interface AppOptions {
   store: Store;
@@ -39,11 +41,18 @@ function publicSubmission(s: Submission, store: Store): PublicSubmission {
   const isLatest = latest.id === s.id;
   const questionOpen = store.question(s.questionId).status === 'published';
   return {
-    receipt: s.receipt, questionId: s.questionId, question: s.question,
-    identity: s.identity, answer: s.answer, reviewStatus: s.reviewStatus,
-    reviewedAt: s.reviewedAt, createdAt: s.createdAt,
+    receipt: s.receipt,
+    questionId: s.questionId,
+    question: s.question,
+    identity: s.identity,
+    answer: s.answer,
+    reviewStatus: s.reviewStatus,
+    reviewedAt: s.reviewedAt,
+    createdAt: s.createdAt,
     feedback: s.reviewStatus === 'pending' ? '' : s.feedback,
-    isLatest, latestReceipt: latest.receipt, questionOpen,
+    isLatest,
+    latestReceipt: latest.receipt,
+    questionOpen,
     canResubmit: isLatest && s.reviewStatus === 'returned' && questionOpen,
   };
 }
@@ -75,24 +84,51 @@ export function createApp(options: AppOptions) {
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
   });
+  const students = studentAuth(options.teacherPassword, store);
+  app.post('/api/student/session', students.establish);
+  app.get('/api/student/session', students.requireStudent, (_req, res) => {
+    res.json({ student: res.locals.student });
+  });
+  app.delete('/api/student/session', students.requireStudent, students.clear);
+  app.get('/api/student/submissions', students.requireStudent, (req, res) => {
+    const questionId = z.string().max(100).optional().parse(req.query.questionId);
+    res.json(
+      store
+        .studentSubmissions(res.locals.student as StudentProfile, questionId)
+        .map((s) => publicSubmission(s, store)),
+    );
+  });
   app.get('/api/questions/current', (_req, res) => {
     res.json(store.currentQuestion());
   });
   app.get('/api/questions/:id', (req, res) => {
-    const question = store.question(req.params.id);
+    const question = store.question(req.params.id as string);
     if (question.status === 'draft') throw new AppError(404, '这道题目尚未发布');
     res.json(question);
   });
-  app.post('/api/questions/:id/submissions', (req, res) => {
-    const input = submissionInputSchema.parse(req.body);
-    const question = store.question(req.params.id);
+  app.post('/api/questions/:id/submissions', students.requireStudent, (req, res) => {
+    const student = res.locals.student as StudentProfile;
+    const input = {
+      ...studentSubmissionSchema.parse(req.body),
+      identity: { groupName: student.groupName, studentNumber: student.studentNumber },
+    };
+    if (input.studentId && input.studentId !== student.id)
+      throw new AppError(409, '登录身份已变更，请刷新页面确认身份后再提交');
+    const question = store.question(req.params.id as string);
     if (question.status === 'draft') throw new AppError(404, '这道题目尚未发布');
     res.status(201).json(publicSubmission(store.submit(question.id, input), store));
   });
-  app.get('/api/receipts/:receipt', (req, res) => {
-    if (!/^[A-Za-z0-9_-]{32}$/.test(req.params.receipt))
+  app.get('/api/receipts/:receipt', students.requireStudent, (req, res) => {
+    if (!/^[A-Za-z0-9_-]{32}$/.test(req.params.receipt as string))
       throw new AppError(404, '未找到这份提交，请检查结果链接');
-    res.json(publicSubmission(store.receipt(req.params.receipt), store));
+    const submission = store.receipt(req.params.receipt as string),
+      student = res.locals.student as StudentProfile;
+    if (
+      submission.identity.groupName !== student.groupName ||
+      submission.identity.studentNumber !== student.studentNumber
+    )
+      throw new AppError(404, '未找到属于当前登录身份的提交');
+    res.json(publicSubmission(submission, store));
   });
 
   const teacher = Router(),
@@ -135,8 +171,13 @@ export function createApp(options: AppOptions) {
   });
   teacher.get('/submissions/:id', (req, res) => {
     const id = idSchema.parse(req.params.id);
-    const submission = store.submission(id), history = store.history(id);
-    res.json({ submission, history, canReview: history[0].id === id && submission.reviewStatus === 'pending' });
+    const submission = store.submission(id),
+      history = store.history(id);
+    res.json({
+      submission,
+      history,
+      canReview: history[0].id === id && submission.reviewStatus === 'pending',
+    });
   });
   teacher.patch('/submissions/:id/review', (req, res) => {
     res.json(store.review(idSchema.parse(req.params.id), reviewInputSchema.parse(req.body)));

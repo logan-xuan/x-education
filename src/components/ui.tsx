@@ -1,4 +1,11 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
 import {
   AlertCircle,
@@ -10,9 +17,12 @@ import {
   LoaderCircle,
   SlidersHorizontal,
   X,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react';
 import type { Grading, ReviewStatus } from '../../shared/model';
+import { StudentContext } from '../student-context';
+import { message } from '../api';
 
 export function Button({
   children,
@@ -56,23 +66,60 @@ export function Brand({ teacher = false }: { teacher?: boolean }) {
   );
 }
 export function Header({ teacher = false }: { teacher?: boolean }) {
+  const studentSession = useContext(StudentContext);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  async function switchIdentity() {
+    if (!studentSession || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await studentSession.logout();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <header className="app-header">
+    <header className={`app-header ${studentSession && !teacher ? 'student-header' : ''}`}>
       <Brand teacher={teacher} />
-      <div className="header-right">
-        <span className="header-motto">
-          {teacher ? '课堂管理空间' : '让每一个好想法，都被看见。'}
-        </span>
-        <span className="class-chip">
-          {teacher ? (
-            <>
-              <SlidersHorizontal size={14} /> 老师后台
-            </>
-          ) : (
-            '数学 · 实践探究'
+      {studentSession && !teacher ? (
+        <div className="student-header-actions">
+          <span className="student-identity">
+            <UserRound size={15} />
+            {studentSession.student.groupName || '未分组'} · 编号{' '}
+            {studentSession.student.studentNumber}
+          </span>
+          <nav className="student-nav" aria-label="学生导航">
+            <Link to="/">课堂任务</Link>
+            <Link to="/my-submissions">我的提交</Link>
+            <Button className="ghost small" disabled={busy} onClick={switchIdentity}>
+              {busy ? '正在切换…' : '切换身份'}
+            </Button>
+          </nav>
+          {error && (
+            <span className="tiny" role="alert">
+              {error}
+            </span>
           )}
-        </span>
-      </div>
+        </div>
+      ) : (
+        <div className="header-right">
+          <span className="header-motto">
+            {teacher ? '课堂管理空间' : '让每一个好想法，都被看见。'}
+          </span>
+          <span className="class-chip">
+            {teacher ? (
+              <>
+                <SlidersHorizontal size={14} /> 老师后台
+              </>
+            ) : (
+              '数学 · 实践探究'
+            )}
+          </span>
+        </div>
+      )}
     </header>
   );
 }
@@ -137,7 +184,11 @@ export function Steps({ result = false }: { result?: boolean }) {
   );
 }
 export function ReviewBadge({ status }: { status: ReviewStatus }) {
-  return <Pill kind={status === 'approved' ? 'good' : status === 'returned' ? 'bad' : 'warm'}>{status === 'approved' ? '已通过' : status === 'returned' ? '退回重答' : '待审核'}</Pill>;
+  return (
+    <Pill kind={status === 'approved' ? 'good' : status === 'returned' ? 'bad' : 'warm'}>
+      {status === 'approved' ? '已通过' : status === 'returned' ? '退回重答' : '待审核'}
+    </Pill>
+  );
 }
 export function Checks({ grading }: { grading: Grading }) {
   return (

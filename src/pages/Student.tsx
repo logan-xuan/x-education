@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
+  RefreshCw,
   ChevronRight,
   ClipboardList,
   Crown,
@@ -13,14 +14,24 @@ import {
   Ticket,
 } from 'lucide-react';
 import type { PublicSubmission, Question } from '../../shared/model';
-import { submissionInputSchema } from '../../shared/model';
+import { studentSubmissionSchema } from '../../shared/model';
+import { useStudent } from '../student-context';
 import { api, message } from '../api';
 import { useResource } from '../hooks';
-import { Alert, ErrorState, Footer, Header, Loading, Pill, Steps } from '../components/ui';
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  ErrorState,
+  Footer,
+  Header,
+  Loading,
+  Pill,
+  ReviewBadge,
+  Steps,
+} from '../components/ui';
 
 export type AnswerDraft = {
-  groupName: string;
-  studentNumber: string;
   secondCount: string;
   thirdCount: string;
   winningCount: string;
@@ -29,8 +40,6 @@ export type AnswerDraft = {
   reason: string;
 };
 export const blankDraft: AnswerDraft = {
-  groupName: '',
-  studentNumber: '',
   secondCount: '',
   thirdCount: '',
   winningCount: '',
@@ -38,13 +47,24 @@ export const blankDraft: AnswerDraft = {
   totalAmount: '',
   reason: '',
 };
-export const draftKey = (id: string, receipt?: string) => `zhike-draft:${id}${receipt ? `:retry:${receipt}` : ''}`;
+export const draftKey = (id: string, studentId: string, receipt?: string) =>
+  `zhike-draft:${studentId}:${id}${receipt ? `:retry:${receipt}` : ''}`;
 export function draftFromSubmission(s: PublicSubmission): AnswerDraft {
-  return { ...s.identity, secondCount: String(s.answer.secondCount), thirdCount: String(s.answer.thirdCount), winningCount: String(s.answer.winningCount), winningRate: String(s.answer.winningRate), totalAmount: String(s.answer.totalAmount), reason: s.answer.reason };
+  return {
+    secondCount: String(s.answer.secondCount),
+    thirdCount: String(s.answer.thirdCount),
+    winningCount: String(s.answer.winningCount),
+    winningRate: String(s.answer.winningRate),
+    totalAmount: String(s.answer.totalAmount),
+    reason: s.answer.reason,
+  };
 }
-function savedDraft(id: string, previous?: PublicSubmission): AnswerDraft {
+function savedDraft(id: string, studentId: string, previous?: PublicSubmission): AnswerDraft {
   try {
-    return { ...(previous ? draftFromSubmission(previous) : blankDraft), ...JSON.parse(sessionStorage.getItem(draftKey(id, previous?.receipt)) || '{}'), ...(previous ? previous.identity : {}) };
+    return {
+      ...(previous ? draftFromSubmission(previous) : blankDraft),
+      ...JSON.parse(sessionStorage.getItem(draftKey(id, studentId, previous?.receipt)) || '{}'),
+    };
   } catch {
     return previous ? draftFromSubmission(previous) : blankDraft;
   }
@@ -53,7 +73,9 @@ function savedDraft(id: string, previous?: PublicSubmission): AnswerDraft {
 export default function Student() {
   const [params] = useSearchParams();
   const retryReceipt = params.get('retry');
-  const previous = useResource<PublicSubmission>(retryReceipt ? `/api/receipts/${encodeURIComponent(retryReceipt)}` : null);
+  const previous = useResource<PublicSubmission>(
+    retryReceipt ? `/api/receipts/${encodeURIComponent(retryReceipt)}` : null,
+  );
   const { id } = useParams(),
     resource = useResource<Question | null>(
       id ? `/api/questions/${encodeURIComponent(id)}` : '/api/questions/current',
@@ -65,11 +87,34 @@ export default function Student() {
         {resource.loading || (retryReceipt && previous.loading) ? (
           <Loading label="正在准备课堂任务…" />
         ) : resource.error || previous.error ? (
-          <ErrorState error={resource.error || previous.error} retry={() => { resource.reload(); previous.reload(); }} />
-        ) : retryReceipt && previous.data && (!previous.data.canResubmit || previous.data.questionId !== resource.data?.id) ? (
-          <section className="card empty-state"><h1>当前提交暂不能重答</h1><p>{previous.data.reviewStatus === 'returned' && !previous.data.questionOpen ? '题目暂未开放，请等待老师重新开放。' : '只有老师退回的最新提交可以修改后重答。'}</p><Link className="button primary" to={`/results/${previous.data.latestReceipt}`}>查看最新审核状态</Link></section>
+          <ErrorState
+            error={resource.error || previous.error}
+            retry={() => {
+              resource.reload();
+              previous.reload();
+            }}
+          />
+        ) : retryReceipt &&
+          previous.data &&
+          (!previous.data.canResubmit || previous.data.questionId !== resource.data?.id) ? (
+          <section className="card empty-state">
+            <h1>当前提交暂不能重答</h1>
+            <p>
+              {previous.data.reviewStatus === 'returned' && !previous.data.questionOpen
+                ? '题目暂未开放，请等待老师重新开放。'
+                : '只有老师退回的最新提交可以修改后重答。'}
+            </p>
+            <Link className="button primary" to={`/results/${previous.data.latestReceipt}`}>
+              查看最新审核状态
+            </Link>
+          </section>
         ) : resource.data ? (
-          <StudentTask key={`${resource.data.id}:${retryReceipt || 'new'}`} question={resource.data} previous={previous.data || undefined} reload={resource.reload} />
+          <StudentTask
+            key={`${resource.data.id}:${retryReceipt || 'new'}`}
+            question={resource.data}
+            previous={previous.data || undefined}
+            reload={resource.reload}
+          />
         ) : (
           <div className="empty-state">
             <ClipboardList size={36} />
@@ -82,20 +127,40 @@ export default function Student() {
     </>
   );
 }
-function StudentTask({ question: q, reload, previous }: { question: Question; reload: () => void; previous?: PublicSubmission }) {
+function StudentTask({
+  question: q,
+  reload,
+  previous,
+}: {
+  question: Question;
+  reload: () => void;
+  previous?: PublicSubmission;
+}) {
   const r = q.rules,
     navigate = useNavigate();
-  const [draft, setDraft] = useState<AnswerDraft>(() => savedDraft(q.id, previous));
-  const [ownReceipt] = useState(() => { try { return sessionStorage.getItem(`zhike-receipt:${q.id}`); } catch { return null; } });
+  const { student } = useStudent();
+  const mine = useResource<PublicSubmission[]>(
+    previous ? null : `/api/student/submissions?questionId=${encodeURIComponent(q.id)}`,
+    true,
+  );
+  const latest = mine.data?.[0];
+  const [draft, setDraft] = useState<AnswerDraft>(() => savedDraft(q.id, student.id, previous));
+  useEffect(() => {
+    if (!latest || latest.reviewStatus !== 'pending' || previous) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') mine.reload();
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [latest?.reviewStatus, latest?.receipt, previous, mine.reload]);
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
   useEffect(() => {
     try {
-      sessionStorage.setItem(draftKey(q.id, previous?.receipt), JSON.stringify(draft));
+      sessionStorage.setItem(draftKey(q.id, student.id, previous?.receipt), JSON.stringify(draft));
     } catch {
       /* Answering still works when browser storage is disabled. */
     }
-  }, [draft, q.id, previous?.receipt]);
+  }, [draft, q.id, student.id, previous?.receipt]);
   function change(name: keyof AnswerDraft, value: string) {
     setDraft((d) => ({ ...d, [name]: value }));
     setError('');
@@ -103,10 +168,10 @@ function StudentTask({ question: q, reload, previous }: { question: Question; re
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy || q.status !== 'published') return;
-    const result = submissionInputSchema.safeParse({
+    const result = studentSubmissionSchema.safeParse({
       questionVersion: q.version,
       previousReceipt: previous?.receipt,
-      identity: { groupName: draft.groupName, studentNumber: draft.studentNumber },
+      studentId: student.id,
       answer: {
         secondCount: Number(draft.secondCount),
         thirdCount: Number(draft.thirdCount),
@@ -127,7 +192,6 @@ function StudentTask({ question: q, reload, previous }: { question: Question; re
         method: 'POST',
         body: JSON.stringify(result.data),
       });
-      try { sessionStorage.setItem(`zhike-receipt:${q.id}`, receipt.receipt); } catch { /* Storage is optional. */ }
       navigate(`/results/${receipt.receipt}`);
     } catch (error) {
       setError(message(error));
@@ -179,7 +243,9 @@ function StudentTask({ question: q, reload, previous }: { question: Question; re
         <span>{q.title}</span>
       </div>
       <Steps />
-      {previous && <Alert>老师已退回本次答案：{previous.feedback}。请按当前题目条件修改后重新提交。</Alert>}
+      {previous && (
+        <Alert>老师已退回本次答案：{previous.feedback}。请按当前题目条件修改后重新提交。</Alert>
+      )}
       {q.status === 'closed' && <Alert>本题已结束收集。你仍可阅读题目，暂时无法提交新答案。</Alert>}
       <section className="task-hero">
         <div>
@@ -287,94 +353,115 @@ function StudentTask({ question: q, reload, previous }: { question: Question; re
             </div>
           </section>
         </div>
-        <form className="card answer-form" onSubmit={submit}>
-          <div className="section-heading">
-            <h2>
-              <PencilLine />
-              方案申报表
-            </h2>
-            <span className="tiny">所有项目均需填写</span>
+        {!previous && mine.loading && !mine.data ? (
+          <div className="card">
+            <Loading label="正在读取我的提交状态…" />
           </div>
-          <div className="field-grid">
+        ) : !previous && mine.error ? (
+          <div className="card">
+            <ErrorState error={mine.error} retry={mine.reload} />
+          </div>
+        ) : !previous && latest ? (
+          <section className="card own-task-status">
+            <div className="section-heading">
+              <h2>我的答题状态</h2>
+              <ReviewBadge status={latest.reviewStatus} />
+            </div>
+            <div className="student-session-card">
+              <span>小组：{student.groupName || '未分组'}</span>
+              <strong>编号：{student.studentNumber}</strong>
+            </div>
+            <h3>
+              {latest.reviewStatus === 'pending'
+                ? '答案已提交，等待老师审核'
+                : latest.reviewStatus === 'approved'
+                  ? '老师已审核通过'
+                  : '老师已退回，请修改后重答'}
+            </h3>
+            <p>
+              {latest.reviewStatus === 'pending'
+                ? '请等待老师审核，本页会自动更新状态。'
+                : latest.feedback || '本次审核已完成。'}
+            </p>
+            <div className="actions spaced">
+              <ButtonLink primary to={`/results/${latest.receipt}`}>
+                查看审核状态
+              </ButtonLink>
+              {latest.canResubmit && (
+                <ButtonLink to={`/questions/${q.id}?retry=${latest.receipt}`}>
+                  修改后重答
+                </ButtonLink>
+              )}
+              <Button icon={RefreshCw} disabled={mine.loading} onClick={mine.reload}>
+                刷新状态
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <form className="card answer-form" onSubmit={submit}>
+            <div className="section-heading">
+              <h2>
+                <PencilLine />
+                方案申报表
+              </h2>
+              <span className="tiny">所有项目均需填写</span>
+            </div>
+            <div className="student-session-card" aria-label="当前答题身份">
+              <span>小组：{student.groupName || '未分组'}</span>
+              <strong>编号：{student.studentNumber}</strong>
+            </div>
+            <div className="divider-label">我的分配方案</div>
+            <div className="field-grid">
+              {numeric(`二等奖（${r.secondValue} 元）`, 'secondCount', '张')}
+              {numeric(`三等奖（${r.thirdValue} 元）`, 'thirdCount', '张')}
+            </div>
+            <div className="calculation-fields">
+              {numeric('总中奖券数', 'winningCount', '张', '自己算一算')}
+              {numeric('中奖率', 'winningRate', '%', '填写结果', true)}
+              {numeric('总奖金', 'totalAmount', '元', '填写结果', true)}
+            </div>
             <label className="field">
-              组名
-              <input
-                name="groupName"
-                value={draft.groupName}
-                onChange={(e) => change('groupName', e.target.value)}
-                placeholder="例如：灵感组"
-                maxLength={30}
-                autoComplete="off"
-                readOnly={Boolean(previous)}
+              我的设计理由
+              <textarea
+                name="reason"
+                value={draft.reason}
+                onChange={(e) => change('reason', e.target.value)}
+                placeholder="说说你如何兼顾预算与中奖率……"
+                maxLength={500}
                 required
               />
             </label>
-            <label className="field">
-              编号
-              <input
-                name="studentNumber"
-                value={draft.studentNumber}
-                onChange={(e) => change('studentNumber', e.target.value)}
-                placeholder="例如：03"
-                maxLength={30}
-                autoComplete="off"
-                readOnly={Boolean(previous)}
-                required
-              />
-            </label>
-          </div>
-          <div className="divider-label">我的分配方案</div>
-          <div className="field-grid">
-            {numeric(`二等奖（${r.secondValue} 元）`, 'secondCount', '张')}
-            {numeric(`三等奖（${r.thirdValue} 元）`, 'thirdCount', '张')}
-          </div>
-          <div className="calculation-fields">
-            {numeric('总中奖券数', 'winningCount', '张', '自己算一算')}
-            {numeric('中奖率', 'winningRate', '%', '填写结果', true)}
-            {numeric('总奖金', 'totalAmount', '元', '填写结果', true)}
-          </div>
-          <label className="field">
-            我的设计理由
-            <textarea
-              name="reason"
-              value={draft.reason}
-              onChange={(e) => change('reason', e.target.value)}
-              placeholder="说说你如何兼顾预算与中奖率……"
-              maxLength={500}
-              required
-            />
-          </label>
-          <div className="field-help">
-            <span>写下思考过程，老师会认真阅读</span>
-            <span>{draft.reason.length} / 500</span>
-          </div>
-          {error && (
-            <>
-              <Alert>{error}</Alert>
-              <button className="text-button" type="button" onClick={reload}>
-                重新载入最新题目
-              </button>
-            </>
-          )}
-          <button
-            className="button primary full"
-            type="submit"
-            disabled={busy || q.status !== 'published'}
-          >
-            {q.status === 'closed' ? (
+            <div className="field-help">
+              <span>写下思考过程，老师会认真阅读</span>
+              <span>{draft.reason.length} / 500</span>
+            </div>
+            {error && (
               <>
-                <LockKeyhole size={16} /> 本题已关闭提交
-              </>
-            ) : (
-              <>
-                {busy ? '正在提交…' : '提交方案，等待审核'}
-                <ArrowRight size={16} />
+                <Alert>{error}</Alert>
+                <button className="text-button" type="button" onClick={reload}>
+                  重新载入最新题目
+                </button>
               </>
             )}
-          </button>
-          <p className="form-foot">提交后等待老师审核，退回后才能修改并重答。</p>
-          {ownReceipt && <p className="form-foot"><Link className="text-button" to={`/results/${ownReceipt}`}>查看我的审核状态</Link></p>}
-        </form>
+            <button
+              className="button primary full"
+              type="submit"
+              disabled={busy || q.status !== 'published'}
+            >
+              {q.status === 'closed' ? (
+                <>
+                  <LockKeyhole size={16} /> 本题已关闭提交
+                </>
+              ) : (
+                <>
+                  {busy ? '正在提交…' : '提交方案，等待审核'}
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+            <p className="form-foot">提交后等待老师审核，退回后才能修改并重答。</p>
+          </form>
+        )}
       </div>
     </>
   );

@@ -2,10 +2,15 @@ import { test, expect, type Page } from '@playwright/test';
 
 const key = 'e2e-fixed-teacher-secret-2026';
 const teacherLink = `/teacher#key=${key}`;
+async function loginStudent(page: Page, groupName = '端到端测试组', studentNumber = '03') {
+  await expect(page.getByRole('heading', { name: '学生登录', exact: true })).toBeVisible();
+  await page.getByLabel('小组名', { exact: true }).fill(groupName);
+  await page.getByLabel('编号', { exact: true }).fill(studentNumber);
+  await page.getByRole('button', { name: '进入课堂', exact: true }).click();
+  await expect(page.getByRole('button', { name: '切换身份', exact: true })).toBeVisible();
+}
 async function fillAnswer(page: Page, wrong = false) {
   const fields = {
-    groupName: '端到端测试组',
-    studentNumber: '03',
     secondCount: wrong ? '20' : '10',
     thirdCount: wrong ? '450' : '500',
     winningCount: wrong ? '475' : '515',
@@ -19,30 +24,44 @@ async function fillAnswer(page: Page, wrong = false) {
   }
 }
 
-test('students wait for review; teachers return and approve work without exposing automatic results', async ({ page, browser }) => {
-  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+test('students wait for review; teachers return and approve work without exposing automatic results', async ({
+  page,
+  browser,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/questions/red-packet');
+  await loginStudent(page);
   await expect(page.getByRole('heading', { name: '直播间红包雨策划任务' })).toBeVisible();
   await expect(page.locator('a[href^="/teacher"]')).toHaveCount(0);
   await fillAnswer(page);
-  const submitted = page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes('/submissions'));
+  const submitted = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().includes('/submissions'),
+  );
   await page.getByRole('button', { name: '提交方案，等待审核' }).click();
   const response = await (await submitted).json();
-  expect(response.reviewStatus).toBe('pending'); expect(response).not.toHaveProperty('grading');
+  expect(response.reviewStatus).toBe('pending');
+  expect(response).not.toHaveProperty('grading');
   await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
   await expect(page.getByText('逐项核验')).toHaveCount(0);
   await expect(page.getByText('实际中奖率', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '修改后重新提交' })).toHaveCount(0);
   const receiptUrl = page.url();
-  await page.reload(); await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
-  const teacherContext = await browser.newContext(), teacher = await teacherContext.newPage();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
+  const teacherContext = await browser.newContext(),
+    teacher = await teacherContext.newPage();
   try {
     await teacher.goto(teacherLink);
     await expect(teacher.getByRole('heading', { name: '题目管理', exact: true })).toBeVisible();
     expect(teacher.url()).not.toContain('#');
     await teacher.getByRole('link', { name: '提交记录', exact: true }).click();
     await expect(teacher.getByRole('button', { name: /导出/ })).toHaveCount(0);
-    await teacher.getByRole('row').filter({ hasText: '端到端测试组' }).getByRole('button', { name: '查看详情' }).click();
+    await teacher
+      .getByRole('row')
+      .filter({ hasText: '端到端测试组' })
+      .getByRole('button', { name: '查看详情' })
+      .click();
     const detail = teacher.getByRole('dialog', { name: '答案详情' });
     await expect(detail.getByText('自动核算参考（仅老师可见）', { exact: true })).toBeVisible();
     await detail.getByRole('button', { name: '退回重答', exact: true }).click();
@@ -54,7 +73,7 @@ test('students wait for review; teachers return and approve work without exposin
     await expect(page.getByRole('heading', { name: '老师已退回，请修改后重答' })).toBeVisible();
     await expect(page.getByText('请补充预算分配的思考过程。', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: '修改后重新提交' }).click();
-    await expect(page.locator('[name="groupName"]')).toHaveAttribute('readonly', '');
+    await expect(page.getByLabel('当前答题身份')).toContainText('编号：03');
     await fillAnswer(page, true);
     await page.getByRole('button', { name: '提交方案，等待审核' }).click();
     await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
@@ -93,7 +112,9 @@ test('students wait for review; teachers return and approve work without exposin
     await page.getByRole('link', { name: '查看最新提交' }).click();
     await expect(page.getByRole('heading', { name: '老师已审核通过' })).toBeVisible();
     expect(errors).toEqual([]);
-  } finally { await teacherContext.close(); }
+  } finally {
+    await teacherContext.close();
+  }
 });
 
 test('teacher creates, publishes, edits, closes and reopens tasks; student cannot submit stale versions', async ({
@@ -128,6 +149,7 @@ test('teacher creates, publishes, edits, closes and reopens tasks; student canno
     );
     await sharing.getByRole('button', { name: '关闭弹窗' }).click();
     await student.goto(`/questions/${task.id}`);
+    await loginStudent(student);
     await fillAnswer(student);
     await card.getByRole('link', { name: '编辑', exact: true }).click();
     await page.getByLabel('总预算').fill('3400');
@@ -142,7 +164,8 @@ test('teacher creates, publishes, edits, closes and reopens tasks; student canno
     await page.getByRole('button', { name: '确认关闭' }).click();
     await expect(card.getByText('已关闭', { exact: true })).toBeVisible();
     await student.goto(`/questions/${task.id}`);
-    await expect(student.getByRole('button', { name: '本题已关闭提交' })).toBeDisabled();
+    await expect(student.getByRole('alert')).toContainText('本题已结束收集');
+    await expect(student.getByRole('button', { name: '提交方案，等待审核' })).toHaveCount(0);
     await card.getByRole('button', { name: '重新开放' }).click();
     await expect(card.getByText('收集中', { exact: true })).toBeVisible();
   } finally {
@@ -155,6 +178,7 @@ test('student and teacher layouts fit mobile screens and preserve working access
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/questions/red-packet');
+  await loginStudent(page, '移动审核组');
   await expect(page.getByRole('heading', { name: '方案申报表' })).toBeVisible();
   await expect(page.locator('a[href^="/teacher"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -162,7 +186,6 @@ test('student and teacher layouts fit mobile screens and preserve working access
   );
   await page.screenshot({ path: 'test-results/student-mobile.png', fullPage: true });
   await fillAnswer(page);
-  await page.locator('[name="groupName"]').fill('移动审核组');
   await page.getByRole('button', { name: '提交方案，等待审核' }).click();
   await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
   await page.goto(teacherLink);
@@ -180,7 +203,7 @@ test('student and teacher layouts fit mobile screens and preserve working access
   await detail.getByRole('button', { name: '关闭弹窗' }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/questions/red-packet');
-  await expect(page.getByRole('heading', { name: '方案申报表' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '我的答题状态' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -233,4 +256,48 @@ test('a failed teacher verification keeps the management key available for retry
   expect(page.url()).not.toContain('#');
   await page.reload();
   await expect(page.getByRole('heading', { name: '题目管理', exact: true })).toBeVisible();
+});
+
+test('passwordless student login restores work and separates identities on a shared browser', async ({
+  page,
+}) => {
+  await page.goto('/questions/red-packet');
+  await expect(page.getByRole('heading', { name: '学生登录', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '进入课堂' }).click();
+  expect(
+    await page
+      .getByLabel('编号', { exact: true })
+      .evaluate((input) => (input as HTMLInputElement).validity.valueMissing),
+  ).toBe(true);
+  await page.screenshot({ path: 'test-results/student-login.png', fullPage: true });
+  await loginStudent(page, '', '006');
+  await expect(page.getByLabel('当前答题身份')).toContainText('未分组');
+  await expect(page.locator('input[name="groupName"]')).toHaveCount(0);
+  const original = (await (await page.request.get('/api/student/session')).json()).student;
+  await fillAnswer(page);
+  await page.getByRole('button', { name: '提交方案，等待审核' }).click();
+  await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
+  const receipt = page.url().split('/results/')[1];
+  await page.getByRole('link', { name: '我的提交', exact: true }).click();
+  await expect(page.locator('.question-card')).toHaveCount(1);
+  await page.getByRole('button', { name: '切换身份', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '学生登录', exact: true })).toBeVisible();
+  expect((await page.request.get(`/api/receipts/${receipt}`)).status()).toBe(401);
+  await loginStudent(page, '其他小组', '006');
+  await page.getByRole('link', { name: '我的提交', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '还没有提交记录' })).toBeVisible();
+  expect((await page.request.get(`/api/receipts/${receipt}`)).status()).toBe(404);
+  await page.getByRole('button', { name: '切换身份', exact: true }).click();
+  await loginStudent(page, '', '006');
+  const restored = (await (await page.request.get('/api/student/session')).json()).student;
+  expect(restored.id).toBe(original.id);
+  await page.getByRole('link', { name: '我的提交', exact: true }).click();
+  await expect(page.locator('.question-card')).toHaveCount(1);
+  await expect(page.locator('.question-card')).toContainText('待审核');
+  await page.getByRole('link', { name: '查看审核状态', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
+  await expect(page.getByText('实际中奖率', { exact: true })).toHaveCount(0);
+  await page.goto('/login?next=https%3A%2F%2Fother.example%2Fteacher');
+  await expect(page).toHaveURL('http://127.0.0.1:4318/');
+  expect((await page.request.get('/api/teacher/questions')).status()).toBe(401);
 });
