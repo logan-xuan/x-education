@@ -50,7 +50,7 @@ export default function StudentLayout() {
     );
   if (state !== 'ready' || !student)
     return (
-      <>
+      <div className="student-world">
         <Header />
         <main className="student-main">
           {state === 'error' ? (
@@ -66,11 +66,13 @@ export default function StudentLayout() {
           )}
         </main>
         <Footer />
-      </>
+      </div>
     );
   return (
     <StudentContext.Provider value={{ student, logout }}>
-      <Outlet />
+      <div className="student-world">
+        <Outlet />
+      </div>
     </StudentContext.Provider>
   );
 }

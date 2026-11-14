@@ -12,6 +12,7 @@ import StudentLogin from './pages/StudentLogin';
 import StudentWork from './pages/StudentWork';
 import { Footer, Header } from './components/ui';
 import './styles.css';
+import './student-theme.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

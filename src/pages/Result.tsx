@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Clock3, PencilLine, RefreshCw } from 'lucide-react';
+import { ArrowLeft, PencilLine, RefreshCw } from 'lucide-react';
 import type { PublicSubmission } from '../../shared/model';
 import { useResource } from '../hooks';
 import {
@@ -17,6 +17,7 @@ import {
 } from '../components/ui';
 import { draftKey, draftFromSubmission } from './Student';
 import { useStudent } from '../student-context';
+import ReviewMoment from '../components/ReviewMoment';
 
 export default function Result() {
   const { student } = useStudent();
@@ -67,33 +68,7 @@ export default function Result() {
           ) : (
             <>
               <Steps result />
-              <div
-                className={`result-heading ${pending ? 'review-pending' : approved ? '' : 'not-correct'}`}
-              >
-                <div className="result-stamp">
-                  {pending ? (
-                    <Clock3 size={29} />
-                  ) : approved ? (
-                    <Check size={30} />
-                  ) : (
-                    <PencilLine size={27} />
-                  )}
-                </div>
-                <h1>
-                  {pending
-                    ? '提交成功，等待老师审核'
-                    : approved
-                      ? '老师已审核通过'
-                      : '老师已退回，请修改后重答'}
-                </h1>
-                <p>
-                  {pending
-                    ? '答案已保存，请耐心等待老师查看。此页面会自动更新审核状态。'
-                    : approved
-                      ? '老师已完成本次审核，无需重复提交。'
-                      : '请根据老师的修改意见重新思考，再提交给老师审核。'}
-                </p>
-              </div>
+              <ReviewMoment key={s.receipt} submission={s} />
               {resource.error && <Alert>暂时无法更新审核状态，请稍后点击“刷新审核状态”。</Alert>}
               {!s.isLatest && <Alert>你已有更新的提交，请查看最新提交的审核状态。</Alert>}
               <section className="card">

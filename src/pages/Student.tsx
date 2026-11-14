@@ -18,6 +18,7 @@ import { studentSubmissionSchema } from '../../shared/model';
 import { useStudent } from '../student-context';
 import { api, message } from '../api';
 import { useResource } from '../hooks';
+import ReviewMoment from '../components/ReviewMoment';
 import {
   Alert,
   Button,
@@ -250,7 +251,8 @@ function StudentTask({
       <section className="task-hero">
         <div>
           <div className="eyebrow">
-            S 级任务 · 生活中的数学{' '}
+            <Sparkles size={15} />
+            数学探险 · 生活中的数学{' '}
             <Pill kind={q.status === 'closed' ? 'neutral' : 'good'}>
               {q.status === 'closed' ? '已结束' : '进行中'}
             </Pill>
@@ -259,7 +261,7 @@ function StudentTask({
           <p>{q.description}</p>
         </div>
         <div className="envelope-scene" aria-hidden="true">
-          <span className="luck-ticket">GOOD LUCK</span>
+          <span className="luck-ticket">好想法，正在发生</span>
           <div className="envelope" />
           <span className="envelope-coin">✦</span>
           <span className="spark spark-a">✧</span>
@@ -371,18 +373,13 @@ function StudentTask({
               <span>小组：{student.groupName || '未分组'}</span>
               <strong>编号：{student.studentNumber}</strong>
             </div>
-            <h3>
-              {latest.reviewStatus === 'pending'
-                ? '答案已提交，等待老师审核'
-                : latest.reviewStatus === 'approved'
-                  ? '老师已审核通过'
-                  : '老师已退回，请修改后重答'}
-            </h3>
-            <p>
-              {latest.reviewStatus === 'pending'
-                ? '请等待老师审核，本页会自动更新状态。'
-                : latest.feedback || '本次审核已完成。'}
-            </p>
+            <ReviewMoment key={latest.receipt} submission={latest} compact />
+            {latest.reviewStatus !== 'pending' && latest.feedback && (
+              <div className="teacher-note">
+                <strong>老师给你的留言</strong>
+                <p>{latest.feedback}</p>
+              </div>
+            )}
             <div className="actions spaced">
               <ButtonLink primary to={`/results/${latest.receipt}`}>
                 查看审核状态

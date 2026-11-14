@@ -43,6 +43,8 @@ test('students wait for review; teachers return and approve work without exposin
   expect(response.reviewStatus).toBe('pending');
   expect(response).not.toHaveProperty('grading');
   await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
+  await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+  await expect(page.locator('.cat-comfort')).toHaveCount(0);
   await expect(page.getByText('逐项核验')).toHaveCount(0);
   await expect(page.getByText('实际中奖率', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '修改后重新提交' })).toHaveCount(0);
@@ -70,7 +72,20 @@ test('students wait for review; teachers return and approve work without exposin
     await detail.getByRole('button', { name: '退回重答', exact: true }).click();
     await expect(detail.getByRole('status')).toContainText('已退回重答');
     await page.getByRole('button', { name: '刷新审核状态' }).click();
-    await expect(page.getByRole('heading', { name: '老师已退回，请修改后重答' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '没关系，我们再试一次！' })).toBeVisible();
+    await expect(page.locator('.cat-comfort')).toBeVisible();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+    await page.getByRole('button', { name: '摸摸小橘' }).click();
+    await expect(page.locator('.cat-speech')).toContainText('每一次尝试，都在进步');
+    await page.getByRole('button', { name: '让小橘休息' }).click();
+    await expect(page.locator('.cat-buddy')).toHaveClass(/cat-resting/);
+    await page.getByRole('button', { name: '叫醒小橘' }).click();
+    await expect(page.locator('.cat-buddy')).not.toHaveClass(/cat-resting/);
+    await page.screenshot({
+      path: 'test-results/student-cat-comfort.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
     await expect(page.getByText('请补充预算分配的思考过程。', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: '修改后重新提交' }).click();
     await expect(page.getByLabel('当前答题身份')).toContainText('编号：03');
@@ -90,7 +105,36 @@ test('students wait for review; teachers return and approve work without exposin
     await detail.getByRole('button', { name: '审核通过', exact: true }).click();
     await expect(detail.getByRole('status')).toContainText('已审核通过');
     await page.getByRole('button', { name: '刷新审核状态' }).click();
-    await expect(page.getByRole('heading', { name: '老师已审核通过' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
+    await expect(page.getByTestId('red-packet-rain')).toBeVisible();
+    await expect(page.locator('.rain-packet')).toHaveCount(68);
+    await page.getByRole('button', { name: '收起红包雨' }).click();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+    await page.getByRole('button', { name: '刷新审核状态' }).click();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+    await page.getByRole('button', { name: '再看一次红包雨' }).click();
+    await expect(page.getByTestId('red-packet-rain')).toBeVisible();
+    await expect
+      .poll(() =>
+        page.locator('.rain-packet').evaluateAll(
+          (packets) =>
+            packets.filter((packet) => {
+              const rect = packet.getBoundingClientRect();
+              return (
+                rect.bottom > 0 &&
+                rect.top < window.innerHeight &&
+                rect.right > 0 &&
+                rect.left < window.innerWidth
+              );
+            }).length,
+        ),
+      )
+      .toBeGreaterThan(15);
+    await page.screenshot({ path: 'test-results/student-celebration.png' });
+    await page.getByRole('button', { name: '收起红包雨' }).click();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
     await expect(page.getByRole('button', { name: '修改后重新提交' })).toHaveCount(0);
     await expect(page.getByText('自动核算参考（仅老师可见）')).toHaveCount(0);
     await detail.getByRole('button', { name: '关闭弹窗' }).click();
@@ -110,7 +154,8 @@ test('students wait for review; teachers return and approve work without exposin
     await expect(page.getByRole('link', { name: '查看最新提交' })).toBeVisible();
     await expect(page.getByRole('button', { name: '修改后重新提交' })).toHaveCount(0);
     await page.getByRole('link', { name: '查看最新提交' }).click();
-    await expect(page.getByRole('heading', { name: '老师已审核通过' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     await teacherContext.close();
@@ -184,7 +229,11 @@ test('student and teacher layouts fit mobile screens and preserve working access
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.screenshot({ path: 'test-results/student-mobile.png', fullPage: true });
+  await page.screenshot({
+    path: 'test-results/student-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
   await fillAnswer(page);
   await page.getByRole('button', { name: '提交方案，等待审核' }).click();
   await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
@@ -263,13 +312,17 @@ test('passwordless student login restores work and separates identities on a sha
 }) => {
   await page.goto('/questions/red-packet');
   await expect(page.getByRole('heading', { name: '学生登录', exact: true })).toBeVisible();
+  await page.screenshot({
+    path: 'test-results/student-login.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
   await page.getByRole('button', { name: '进入课堂' }).click();
   expect(
     await page
       .getByLabel('编号', { exact: true })
       .evaluate((input) => (input as HTMLInputElement).validity.valueMissing),
   ).toBe(true);
-  await page.screenshot({ path: 'test-results/student-login.png', fullPage: true });
   await loginStudent(page, '', '006');
   await expect(page.getByLabel('当前答题身份')).toContainText('未分组');
   await expect(page.locator('input[name="groupName"]')).toHaveCount(0);
@@ -300,4 +353,87 @@ test('passwordless student login restores work and separates identities on a sha
   await page.goto('/login?next=https%3A%2F%2Fother.example%2Fteacher');
   await expect(page).toHaveURL('http://127.0.0.1:4318/');
   expect((await page.request.get('/api/teacher/questions')).status()).toBe(401);
+});
+
+test('celebration follows a teacher decision, ends automatically and respects reduced motion on mobile', async ({
+  page,
+  browser,
+}) => {
+  const teacherContext = await browser.newContext();
+  try {
+    await page.clock.install();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/questions/red-packet');
+    await loginStudent(page, '动画验收组', '08');
+    await fillAnswer(page);
+    await page.getByRole('button', { name: '提交方案，等待审核' }).click();
+    await expect(page.getByRole('heading', { name: '提交成功，等待老师审核' })).toBeVisible();
+    const receipt = page.url().split('/results/')[1];
+    // View the task itself while the teacher reviews, matching the classroom's shared-screen flow.
+    await page.goto('/questions/red-packet');
+    await expect(page.getByRole('heading', { name: '我的答题状态' })).toBeVisible();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+    expect(
+      (
+        await teacherContext.request.post('http://127.0.0.1:4318/api/teacher/session', {
+          headers: { Authorization: `Bearer ${key}` },
+        })
+      ).ok(),
+    ).toBe(true);
+    const records = await (
+      await teacherContext.request.get(
+        'http://127.0.0.1:4318/api/teacher/submissions?questionId=red-packet',
+      )
+    ).json();
+    const record = records.items.find((s: { receipt: string }) => s.receipt === receipt);
+    expect(record).toBeTruthy();
+    expect(
+      (
+        await teacherContext.request.patch(
+          `http://127.0.0.1:4318/api/teacher/submissions/${record.id}/review`,
+          {
+            data: {
+              status: 'approved',
+              feedback: '思考很认真，继续加油！',
+              reviewVersion: record.reviewVersion,
+            },
+          },
+        )
+      ).ok(),
+    ).toBe(true);
+    await page.clock.fastForward(10_001);
+    await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
+    await expect(page.getByTestId('red-packet-rain')).toBeVisible();
+    await expect(page.locator('.rain-packet').first()).toHaveCSS('animation-name', 'none');
+    expect(await page.locator('.rain-packet:visible').count()).toBe(8);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({ path: 'test-results/student-approved-mobile.png', fullPage: true });
+    await page.clock.fastForward(8_001);
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+    await page.getByRole('button', { name: '再看一次红包雨' }).click();
+    await expect(page.getByTestId('red-packet-rain')).toBeVisible();
+    await page.getByRole('button', { name: '收起红包雨' }).click();
+    await page.goto(`/results/${receipt}`);
+    await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+    await page.setViewportSize({ width: 320, height: 720 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.getByRole('button', { name: '再看一次红包雨' }).click();
+    await expect(page.locator('.rain-packet').first()).toHaveCSS(
+      'animation-name',
+      'red-packet-fall',
+    );
+    await page.clock.fastForward(2_000);
+    await page.getByRole('button', { name: '收起红包雨' }).click();
+    await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
+    expect((await page.request.get(`/api/receipts/${receipt}`)).ok()).toBe(true);
+  } finally {
+    await teacherContext.close();
+  }
 });

@@ -20,8 +20,9 @@ export default function StudentWork() {
       <main className="student-main">
         <div className="page-top">
           <div>
+            <p className="eyebrow">✦ 每一次思考，都在进步</p>
             <h1>我的提交</h1>
-            <p>查看自己的课堂任务和老师审核状态。</p>
+            <p>这里收藏着你的好想法，也藏着老师的小鼓励。</p>
           </div>
           <Button icon={RefreshCw} disabled={resource.loading} onClick={resource.reload}>
             刷新
