@@ -20,7 +20,7 @@ export default function RedPacketRain({ onClose }: { onClose: () => void }) {
   return createPortal(
     <div className="red-packet-rain" data-testid="red-packet-rain">
       <div className="rain-announcement" role="status">
-        太棒啦！送你一场红包雨 <span aria-hidden="true">✦</span>
+        恭喜你答对了！ <span aria-hidden="true">✦</span>
       </div>
       <button type="button" className="rain-close" onClick={onClose}>
         <X size={17} />

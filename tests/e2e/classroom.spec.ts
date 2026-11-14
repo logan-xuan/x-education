@@ -406,6 +406,11 @@ test('celebration follows a teacher decision, ends automatically and respects re
     await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
     await expect(page.getByTestId('red-packet-rain')).toBeVisible();
     await expect(page.locator('.rain-packet').first()).toHaveCSS('animation-name', 'none');
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(page.getByTestId('red-packet-rain').getByRole('status')).toContainText(
+      '恭喜你答对了！',
+    );
+    await expect(page.getByTestId('red-packet-rain').getByRole('status')).toBeInViewport();
     expect(await page.locator('.rain-packet:visible').count()).toBe(8);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
