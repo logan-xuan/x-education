@@ -1,0 +1,25 @@
+[Unit]
+Description=Zhike classroom education application
+After=network.target
+
+[Service]
+Type=simple
+User=x-education
+Group=x-education
+WorkingDirectory=/opt/x-education
+Environment=NODE_ENV=production
+Environment=PATH=/opt/nodejs/node-v24.22.3-linux-x64/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/opt/x-education/.env
+ExecStart=/opt/nodejs/node-v24.22.3-linux-x64/bin/node /opt/x-education/dist/server/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/x-education/data
+
+[Install]
+WantedBy=multi-user.target
