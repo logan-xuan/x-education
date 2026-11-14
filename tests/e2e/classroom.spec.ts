@@ -105,7 +105,9 @@ test('students wait for review; teachers return and approve work without exposin
     await detail.getByRole('button', { name: '审核通过', exact: true }).click();
     await expect(detail.getByRole('status')).toContainText('已审核通过');
     await page.getByRole('button', { name: '刷新审核状态' }).click();
-    await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
+    await expect(
+      page.getByTestId('red-packet-rain').getByRole('heading', { name: '恭喜你答对了！' }),
+    ).toBeVisible();
     await expect(page.getByTestId('red-packet-rain')).toBeVisible();
     await expect(page.locator('.rain-packet')).toHaveCount(68);
     await page.getByRole('button', { name: '收起红包雨' }).click();
@@ -355,7 +357,7 @@ test('passwordless student login restores work and separates identities on a sha
   expect((await page.request.get('/api/teacher/questions')).status()).toBe(401);
 });
 
-test('celebration follows a teacher decision, ends automatically and respects reduced motion on mobile', async ({
+test('celebration follows a teacher decision, shows the round summary and respects reduced motion on mobile', async ({
   page,
   browser,
 }) => {
@@ -403,20 +405,22 @@ test('celebration follows a teacher decision, ends automatically and respects re
       ).ok(),
     ).toBe(true);
     await page.clock.fastForward(10_001);
-    await expect(page.getByRole('heading', { name: '恭喜你答对了！' })).toBeVisible();
+    await expect(
+      page.getByTestId('red-packet-rain').getByRole('heading', { name: '恭喜你答对了！' }),
+    ).toBeVisible();
     await expect(page.getByTestId('red-packet-rain')).toBeVisible();
     await expect(page.locator('.rain-packet').first()).toHaveCSS('animation-name', 'none');
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect(page.getByTestId('red-packet-rain').getByRole('status')).toContainText(
-      '恭喜你答对了！',
-    );
-    await expect(page.getByTestId('red-packet-rain').getByRole('status')).toBeInViewport();
+    await expect(page.locator('.rain-announcement')).toContainText('恭喜你答对了！');
+    await expect(page.locator('.rain-announcement')).toBeInViewport();
     expect(await page.locator('.rain-packet:visible').count()).toBe(8);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
     await page.screenshot({ path: 'test-results/student-approved-mobile.png', fullPage: true });
-    await page.clock.fastForward(8_001);
+    await page.clock.fastForward(20_001);
+    await expect(page.getByRole('heading', { name: '红包收好啦！' })).toBeVisible();
+    await page.getByRole('button', { name: '完成', exact: true }).click();
     await expect(page.getByTestId('red-packet-rain')).toHaveCount(0);
     await page.getByRole('button', { name: '再看一次红包雨' }).click();
     await expect(page.getByTestId('red-packet-rain')).toBeVisible();

@@ -95,7 +95,14 @@ export default function ReviewMoment({
           </button>
         )}
       </div>
-      {rain > 0 && s.isLatest && approved && <RedPacketRain key={rain} onClose={closeRain} />}
+      {rain > 0 && s.isLatest && approved && (
+        <RedPacketRain
+          key={rain}
+          rules={s.question.rules}
+          onClose={closeRain}
+          onReplay={() => setRain((n) => n + 1)}
+        />
+      )}
     </div>
   );
 }

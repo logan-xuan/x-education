@@ -729,23 +729,34 @@
   font-size: 13px;
 }
 
-/* A finite, dismissible celebration above the whole viewport. */
+/* A swipe-to-open classroom celebration above the whole viewport. */
 .red-packet-rain {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  pointer-events: none;
+  pointer-events: auto;
   overflow: hidden;
+  touch-action: none;
+  display: grid;
+  place-items: center;
+  padding: 115px 16px 24px;
+  color: #674b35;
   font-family: ui-rounded, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.rain-game-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #fff4e7b0;
+  backdrop-filter: blur(2px);
 }
 .rain-announcement {
   position: absolute;
-  z-index: 2;
+  z-index: 5;
   top: 24px;
   left: 50%;
   transform: translateX(-50%);
   border: 1px solid #efcf82;
-  border-radius: 30px;
+  border-radius: 24px;
   background: #fff8ddf5;
   color: #a04527;
   padding: 12px 25px;
@@ -753,6 +764,25 @@
   font-weight: 700;
   box-shadow: 0 6px 25px #8e471d18;
   white-space: nowrap;
+  text-align: center;
+}
+.rain-announcement h2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 750;
+}
+.rain-announcement p {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #8c6849;
 }
 .rain-announcement span {
   color: #d59a26;
@@ -763,7 +793,7 @@
   position: absolute;
   top: 29px;
   right: 25px;
-  z-index: 3;
+  z-index: 8;
   display: flex;
   gap: 6px;
   align-items: center;
@@ -783,6 +813,11 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
+  z-index: 1;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .rain-packet {
   position: absolute;
@@ -796,7 +831,12 @@
   box-shadow: 2px 5px 8px #98341f20;
   overflow: hidden;
   will-change: transform;
+  pointer-events: none;
   animation: red-packet-fall var(--packet-duration) var(--packet-delay) linear infinite both;
+}
+.rain-packet.packet-caught {
+  visibility: hidden;
+  animation-play-state: paused;
 }
 .packet-color-1 {
   background: #ef6450;
@@ -831,6 +871,296 @@
   border: 2px solid #ffedb8;
   font-size: calc(var(--packet-size) * 0.23);
   line-height: 1;
+}
+.rain-game-progress {
+  position: absolute;
+  z-index: 5;
+  top: 126px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid #ecd6b8;
+  background: #fffdf4f2;
+  padding: 9px 18px;
+  border-radius: 28px;
+  box-shadow: 0 4px 20px #9b602311;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.rain-time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #a14d31;
+  font-weight: 700;
+}
+.rain-time.almost-done {
+  color: #bf352b;
+}
+.rain-game-progress b {
+  font-size: 19px;
+  color: #9e4630;
+}
+.rain-game-progress strong {
+  font-size: 19px;
+  color: #9c6b23;
+}
+.rain-collection {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(490px, calc(100% - 32px));
+  padding: 15px 18px 12px;
+  background: #fffdf6f5;
+  border: 1px solid #eacda4;
+  box-shadow: 0 8px 36px #86541e1a;
+  border-radius: 24px;
+}
+.rain-collection-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.rain-collection-top h3 {
+  font-size: 15px;
+  font-weight: 700;
+}
+.rain-collection-top small {
+  font-size: 10px;
+  color: #967c62;
+}
+.rain-catch-one {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d76a42;
+  border-radius: 22px;
+  background: #bf4434;
+  color: #fff6e8;
+  padding: 8px 13px;
+  min-height: 38px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.rain-catch-one:hover {
+  background: #a7362a;
+}
+.rain-prize-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.rain-prize-counts:has(> :nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.rain-prize-count {
+  background: #fff3d5;
+  border: 1px solid #f1dfb4;
+  border-radius: 14px;
+  text-align: center;
+  padding: 11px 5px 8px;
+}
+.rain-prize-count > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #947044;
+  white-space: nowrap;
+}
+.rain-prize-count strong {
+  display: block;
+  font-size: 25px;
+  line-height: 1.5;
+  color: #a56d1a;
+  overflow-wrap: anywhere;
+}
+.rain-prize-count strong small {
+  font-size: 11px;
+  margin-left: 3px;
+  font-weight: 400;
+}
+.rain-prize-count b {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9a7a50;
+}
+.rain-prize-count.prize-second {
+  background: #fff0e5;
+  border-color: #f1d9c6;
+}
+.rain-prize-count.prize-second strong {
+  color: #bd5940;
+}
+.rain-prize-count.prize-third {
+  background: #edf3e8;
+  border-color: #dbe5cf;
+}
+.rain-prize-count.prize-third strong {
+  color: #62805a;
+}
+.rain-latest {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: #936b41;
+  line-height: 1.7;
+  min-height: 21px;
+}
+.rain-reveals {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+.rain-reveal {
+  position: absolute;
+  width: 158px;
+  text-align: center;
+  border: 2px solid #eac76d;
+  border-radius: 19px;
+  padding: 10px 8px;
+  color: #95611f;
+  background: #fff9d8;
+  box-shadow: 0 8px 25px #c0884529;
+  animation: rain-prize-pop 1.4s ease-out both;
+}
+.rain-reveal > span {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+}
+.rain-reveal strong {
+  display: block;
+  font-size: 32px;
+  line-height: 1.5;
+}
+.rain-reveal small {
+  font-size: 13px;
+  margin-left: 4px;
+}
+.rain-reveal.prize-second {
+  border-color: #eaa27b;
+  background: #fff0e5;
+  color: #b65236;
+}
+.rain-reveal.prize-third {
+  border-color: #b4cba5;
+  background: #f0f8e9;
+  color: #618552;
+}
+.rain-summary {
+  position: relative;
+  z-index: 6;
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 145px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 28px;
+  border-radius: 28px;
+  border: 1px solid #eacb8c;
+  background: #fffdf3;
+  box-shadow: 0 15px 80px #85552c2b;
+  text-align: center;
+  animation: classroom-enter 0.3s ease-out both;
+}
+.rain-summary-symbol {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 14px;
+  color: #b75a33;
+  background: #ffe8b5;
+  border-radius: 23px;
+  transform: rotate(-7deg);
+}
+.rain-summary-kicker {
+  font-size: 11px;
+  color: #a07b47;
+  letter-spacing: 2px;
+  margin-bottom: 7px;
+}
+.rain-summary h2 {
+  font-size: 29px;
+  font-weight: 750;
+  color: #674b35;
+}
+.rain-summary-intro {
+  font-size: 13px;
+  color: #90765c;
+  margin-top: 9px;
+  line-height: 1.9;
+}
+.rain-summary-total {
+  display: flex;
+  flex-direction: column;
+  padding: 13px 0 19px;
+}
+.rain-summary-total > span {
+  font-size: 12px;
+  color: #997854;
+}
+.rain-summary-total strong {
+  font-size: 44px;
+  line-height: 1.5;
+  color: #bc5037;
+}
+.rain-summary-total small {
+  font-size: 14px;
+  margin-left: 7px;
+}
+.rain-summary-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.rain-summary-actions button {
+  border: 1px solid #e4d4b9;
+  border-radius: 14px;
+  background: #fffdf7;
+  color: #7c6349;
+  font-size: 14px;
+  min-height: 44px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.rain-summary-actions .rain-play-again {
+  background: #bf4434;
+  border-color: #bf4434;
+  color: #fff9ec;
+  box-shadow: 0 3px 0 #943425;
+}
+@keyframes rain-prize-pop {
+  0% {
+    transform: translate(-50%, -35%) scale(0.55) rotate(-8deg);
+    opacity: 0;
+  }
+  16% {
+    transform: translate(-50%, -65%) scale(1.05) rotate(2deg);
+    opacity: 1;
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -110%) scale(0.95);
+    opacity: 0;
+  }
 }
 @keyframes classroom-enter {
   from {
@@ -1014,8 +1344,7 @@
     grid-column: auto;
   }
   .rain-close {
-    top: auto;
-    bottom: 25px;
+    top: 24px;
     right: 20px;
   }
   .rain-packet:nth-child(n + 43) {
@@ -1174,9 +1503,88 @@
     justify-content: center;
   }
   .rain-announcement {
-    top: 18px;
-    font-size: 14px;
-    padding: 11px 18px;
+    top: 14px;
+    left: 14px;
+    right: 110px;
+    transform: none;
+    padding: 12px 7px;
+    border-radius: 19px;
+    white-space: normal;
+  }
+  .rain-announcement h2 {
+    font-size: 18px;
+    gap: 4px;
+  }
+  .rain-announcement h2 > svg {
+    display: none;
+  }
+  .rain-announcement p {
+    font-size: 10px;
+    line-height: 1.7;
+    padding: 0 5px;
+  }
+  .rain-announcement p svg {
+    display: none;
+  }
+  .rain-close {
+    right: 12px;
+    top: 24px;
+    font-size: 10px;
+    padding: 7px 9px;
+    gap: 3px;
+    min-height: 36px;
+  }
+  .rain-close svg {
+    width: 13px;
+  }
+  .rain-game-progress {
+    top: 113px;
+    font-size: 12px;
+    gap: 14px;
+    padding: 8px 15px;
+  }
+  .rain-game-progress b,
+  .rain-game-progress strong {
+    font-size: 18px;
+  }
+  .rain-collection {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    padding: 13px 13px 10px;
+    border-radius: 20px;
+  }
+  .rain-prize-counts {
+    gap: 7px;
+  }
+  .rain-prize-count {
+    padding: 10px 4px 7px;
+    border-radius: 12px;
+  }
+  .rain-prize-count > span {
+    font-size: 10px;
+    gap: 3px;
+  }
+  .rain-prize-count > span svg {
+    display: none;
+  }
+  .rain-prize-count strong {
+    font-size: 23px;
+  }
+  .rain-latest {
+    font-size: 11px;
+  }
+  .rain-summary {
+    padding: 24px 18px;
+    border-radius: 24px;
+  }
+  .rain-summary h2 {
+    font-size: 26px;
+  }
+  .rain-summary-total strong {
+    font-size: 38px;
+  }
+  .rain-summary-actions button {
+    flex: 1;
+    padding: 10px 12px;
   }
 }
 @media (max-width: 360px) {
@@ -1230,7 +1638,10 @@
   .rain-packet {
     top: var(--packet-static-top);
     transform: rotate(var(--packet-rotation));
-    opacity: 0.65;
+    opacity: 1;
+  }
+  .rain-reveals {
+    display: none;
   }
   .rain-packet:nth-child(n + 9) {
     display: none;
